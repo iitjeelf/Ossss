@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Student MCQ Test (Image Questions)</title>
+<style>
+body{font-family:system-ui,Arial,sans-serif;background:#f6fafc;margin:0;display:flex;justify-content:center;padding:20px}
+.container{background:#fff;max-width:900px;width:100%;border-radius:12px;box-shadow:0 6px 20px rgba(0,0,0,.08);overflow:hidden}
+header{background:#eef2ff;padding:16px 20px;border-bottom:1px solid #dbeafe}
+header h1{margin:0;font-size:20px;color:#1e3a8a}
+main{padding:20px}
+button{cursor:pointer;border:none;border-radius:6px;padding:8px 14px;font-size:15px}
+button.primary{background:#2563eb;color:#fff}
+button.secondary{background:#fff;color:#2563eb;border:1px solid #2563eb}
+.question-card{border:1px solid #e2e8f0;border-radius:10px;padding:16px;background:#fff;margin-top:16px}
+.question-image{max-width:100%;border-radius:8px;border:1px solid #e2e8f0;margin-bottom:12px}
+.choices label{display:block;margin:6px 0}
+.nav{margin-top:12px;display:flex;gap:8px;justify-content:space-between}
+.timer{color:#dc2626;font-weight:600}
+.result{margin-top:20px;padding:12px;border-radius:8px;background:#ecfdf5;border:1px solid #d1fae5}
+</style>
+</head>
+<body>
+<div class="container">
+<header>
+<h1>Student MCQ Test</h1>
+<p style="font-size:13px;margin:4px 0 0">Upload images in <code>images/</code> and add <code>key.json</code> with answers.</p>
+</header>
+<main>
+<div id="setup">
+<label>Name: <input id="studentName" type="text"></label><br>
+<label>Roll No: <input id="studentRoll" type="text"></label><br>
+<label>Timer (minutes, 0 = no timer): <input id="timerMinutes" type="number" min="0" value="0"></label><br><br>
+<button class="primary" id="startBtn">Start Test</button>
+</div>
+
+<div id="quiz" style="display:none">
+<div id="timerDisplay" class="timer"></div>
+<div class="question-card">
+<div id="qNum"></div>
+<img id="qImage" class="question-image" alt="Question">
+<div class="choices" id="choices"></div>
+<div class="nav">
+<button class="secondary" id="prevBtn">Prev</button>
+<button class="secondary" id="nextBtn">Next</button>
+<button class="primary" id="submitBtn">Submit</button>
+</div>
+</div>
+<div id="result" class="result" style="display:none"></div>
+</div>
+</main>
+</div>
+
+<script>
+let questions=[],answersMap={},current=0,userAnswers=[],timer=null,timeLeft=0;
+async function loadKey(){
+ try{
+  const res=await fetch('key.json');
+  if(!res.ok)throw new Error('key.json missing');
+  const key=await res.json();
+  const folder=key.imagesFolder||'images';
+  if(key.questions){questions=key.questions.map(q=>({file:q.file,answer:q.answer,folder}));}
+  else if(key.answers){
+    const sorted=Object.keys(key.answers).sort((a,b)=>a.localeCompare(b,undefined,{numeric:true}));
+    questions=sorted.map(f=>({file:f,answer:key.answers[f],folder}));
+  }
+  answersMap={};questions.forEach((q,i)=>answersMap[i]=q.answer);
+ }catch(e){alert('Error loading key.json: '+e.message);}
+}
+function showQuestion(i){
+ if(i<0||i>=questions.length)return;
+ current=i;
+ document.getElementById('qNum').textContent=`Question ${i+1} of ${questions.length}`;
+ const q=questions[i];
+ document.getElementById('qImage').src=`${q.folder}/${q.file}`;
+ const ch=document.getElementById('choices');
+ ch.innerHTML='';
+ ['A','B','C','D'].forEach(opt=>{
+   const id=`q${i}_${opt}`;
+   ch.innerHTML+=`<label><input type=\"radio\" name=\"q${i}\" value=\"${opt}\">${opt}</label>`;
+ });
+ if(userAnswers[i])document.querySelector(`input[name=q${i}][value=${userAnswers[i]}]`).checked=true;
+}
+function nextQ(){if(current<questions.length-1){saveAns();showQuestion(++current);}}
+function prevQ(){if(current>0){saveAns();showQuestion(--current);}}
+function saveAns(){
+ const sel=document.querySelector(`input[name=q${current}]:checked`);
+ userAnswers[current]=sel?sel.value:null;
+}
+function submit(){
+ saveAns();
+ let score=0;
+ questions.forEach((q,i)=>{if(userAnswers[i]===q.answer)score++;});
+ document.getElementById('result').style.display='block';
+ document.getElementById('result').textContent=`${score} / ${questions.length} correct`;
+ clearInterval(timer);
+}
+function start(){
+ if(!questions.length){alert('No questions found.');return;}
+ document.getElementById('setup').style.display='none';
+ document.getElementById('quiz').style.display='block';
+ userAnswers=Array(questions.length).fill(null);
+ showQuestion(0);
+ const mins=parseInt(document.getElementById('timerMinutes').value)||0;
+ if(mins>0){
+   timeLeft=mins*60;
+   document.getElementById('timerDisplay').textContent=`Time left: ${mins}:00`;
+   timer=setInterval(()=>{
+     if(timeLeft<=0){clearInterval(timer);submit();return;}
+     timeLeft--;
+     const m=Math.floor(timeLeft/60),s=timeLeft%60;
+     document.getElementById('timerDisplay').textContent=`Time left: ${m}:${s.toString().padStart(2,'0')}`;
+   },1000);
+ }
+}
+document.getElementById('startBtn').onclick=start;
+document.getElementById('nextBtn').onclick=nextQ;
+document.getElementById('prevBtn').onclick=prevQ;
+document.getElementById('submitBtn').onclick=submit;
+loadKey();
+</script>
+</body>
+</html>
